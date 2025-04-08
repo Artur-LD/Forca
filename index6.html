@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR"> <!-- Define o idioma da página como português do Brasil -->
+<head>
+  <meta charset="UTF-8" /> <!-- Suporta acentos e caracteres especiais -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" /> <!-- Responsividade para dispositivos móveis -->
+  <title>Jogo da Forca</title> <!-- Título da aba do navegador -->
+
+  <style>
+    /* Estilos gerais da página */
+    body {
+      font-family: Arial, sans-serif; /* Define a fonte principal */
+      text-align: center; /* Centraliza todos os elementos na página */
+      margin: 0;
+      padding: 0;
+      background-color: #f8f8f8; /* Cor de fundo clara */
+    }
+
+    h1 {
+      background-color: #007acc; /* Cor de fundo do título */
+      color: white; /* Cor do texto do título */
+      padding: 20px; /* Espaço interno */
+      margin: 0;
+    }
+
+    #forcaCanvas {
+      border: 1px solid #ccc; /* Adiciona uma borda ao canvas */
+      margin-top: 20px;
+    }
+
+    #imagem {
+      max-width: 200px; /* Limita a largura da imagem */
+      margin-top: 20px;
+    }
+
+    #palavra,
+    #letrasErradas,
+    #mensagem,
+    #contador,
+    #tentativasRestantes {
+      font-size: 20px; /* Tamanho da fonte */
+      margin-top: 15px;
+    }
+
+    .teclado {
+      margin-top: 20px;
+    }
+
+    .tecla {
+      display: inline-block; /* Botões lado a lado */
+      margin: 5px;
+      padding: 10px 15px;
+      background-color: #ddd;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .tecla:disabled {
+      background-color: #999;
+      cursor: not-allowed;
+    }
+
+    #reset {
+      margin-top: 30px;
+      padding: 10px 20px;
+      font-size: 18px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #configBtn {
+      padding: 8px 16px;
+      font-size: 16px;
+      background-color: #ffc107;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Jogo da Forca</h1> <!-- Título principal -->
+
+  <p style="font-size: 18px; margin-top: 10px;">
+    Adivinhe o nome com a dica da foto!<br />
+    Digite uma letra por vez.
+  </p>
+
+  <canvas id="forcaCanvas" width="200" height="250"></canvas> <!-- Área para desenhar a forca -->
+
+  <img id="imagem" src="" alt="Dica" /> <!-- Imagem de dica associada à palavra -->
+
+  <div id="palavra"></div> <!-- Área para exibir a palavra com letras e traços -->
+  <div class="teclado" id="teclado"></div> <!-- Teclado virtual de letras -->
+  <div id="letrasErradas"></div> <!-- Letras erradas que o jogador tentou -->
+  <div id="tentativasRestantes"></div> <!-- Número de tentativas restantes -->
+  <div id="mensagem"></div> <!-- Mensagem de vitória ou derrota -->
+  <div id="contador">Vitórias: 0 | Derrotas: 0</div> <!-- Contador de placar -->
+
+  <div style="margin-top: 20px;">
+    <button id="configBtn">Configurações</button> <!-- Botão para mostrar opções de dificuldade -->
+    <select id="dificuldade" style="display: none; margin-left: 10px;">
+      <!-- Opções de dificuldade -->
+      <option value="8">Fácil (8 tentativas)</option>
+      <option value="6" selected>Médio (6 tentativas)</option>
+      <option value="4">Difícil (4 tentativas)</option>
+    </select>
+  </div>
+
+  <button id="reset">Nova Palavra</button> <!-- Botão para reiniciar o jogo -->
+
+  <script>
+    let tentativasMaximas = 6; // Define o número inicial de tentativas
+    let palavra = ""; // Palavra sorteada
+    let palavraExibida = []; // Palavra com traços e letras
+    let letrasErradas = []; // Armazena letras erradas
+    let vitorias = 0; // Contador de vitórias
+    let derrotas = 0; // Contador de derrotas
+
+    // Referência aos elementos da página
+    const palavraDiv = document.getElementById("palavra");
+    const letrasErradasDiv = document.getElementById("letrasErradas");
+    const tentativasRestantesDiv = document.getElementById("tentativasRestantes");
+    const mensagemDiv = document.getElementById("mensagem");
+    const imagem = document.getElementById("imagem");
+    const tecladoDiv = document.getElementById("teclado");
+    const contadorDiv = document.getElementById("contador");
+    const canvas = document.getElementById("forcaCanvas");
+    const ctx = canvas.getContext("2d"); // Contexto de desenho do canvas
+
+    // Limpa o canvas
+    function limparCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Função para desenhar a forca e partes do boneco
+    function desenharForca(erros) {
+      limparCanvas(); // Limpa o canvas
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#000";
+
+      // Estrutura da forca
+      ctx.beginPath();
+      ctx.moveTo(20, 230); ctx.lineTo(180, 230); // Base
+      ctx.moveTo(50, 230); ctx.lineTo(50, 20);   // Poste vertical
+      ctx.lineTo(120, 20);                       // Topo
+      ctx.lineTo(120, 50);                       // Corda
+      ctx.stroke();
+
+      // Desenha partes do boneco com base no número de tentativas permitidas
+      const todasPartes = [
+        () => { ctx.beginPath(); ctx.arc(120, 70, 20, 0, Math.PI * 2); ctx.stroke(); }, // Cabeça
+      () => { ctx.beginPath(); ctx.moveTo(120, 90); ctx.lineTo(120, 150); ctx.stroke(); }, // Corpo
+      () => { ctx.beginPath(); ctx.moveTo(120, 100); ctx.lineTo(90, 130); ctx.stroke(); }, // Braço esquerdo
+      () => { ctx.beginPath(); ctx.moveTo(120, 100); ctx.lineTo(150, 130); ctx.stroke(); }, // Braço direito
+      () => { ctx.beginPath(); ctx.moveTo(120, 150); ctx.lineTo(90, 190); ctx.stroke(); }, // Perna esquerda
+      () => { ctx.beginPath(); ctx.moveTo(120, 150); ctx.lineTo(150, 190); ctx.stroke(); }, // Perna direita
+      () => { ctx.beginPath(); ctx.moveTo(112, 63); ctx.lineTo(118, 69); ctx.moveTo(118, 63); ctx.lineTo(112, 69); ctx.stroke(); }, // Olho X
+      () => { ctx.beginPath(); ctx.moveTo(122, 63); ctx.lineTo(128, 69); ctx.moveTo(128, 63); ctx.lineTo(122, 69); ctx.stroke(); }  // Outro olho X
+    ];
+
+      // Desenhar partes do boneco proporcionalmente
+      const totalPartes = todasPartes.length;
+      const partesParaDesenhar = Math.floor((erros / tentativasMaximas) * totalPartes);
+
+      for (let i = 0; i < partesParaDesenhar; i++) {
+       todasPartes[i]();
+      }
+    }
+
+    // Carrega uma nova palavra do arquivo hospedado
+    function novaPalavra() {
+      const botoes = document.querySelectorAll(".tecla");
+      botoes.forEach((b) => (b.disabled = false)); // Habilita todas as teclas
+
+      fetch('https://raw.githubusercontent.com/Artur-LD/Forca/main/palavras.txt')
+        .then(res => res.text())
+        .then(texto => {
+          const lista = texto.trim().split("\n"); // Divide por linhas
+          palavra = lista[Math.floor(Math.random() * lista.length)].toLowerCase(); // Sorteia palavra
+          palavraExibida = Array(palavra.length).fill("_"); // Cria traços
+          letrasErradas = []; // Limpa erros
+          atualizarTela(); // Atualiza a interface
+          mensagemDiv.textContent = ""; // Limpa mensagem
+          imagem.src = `https://raw.githubusercontent.com/Artur-LD/Forca/main/img/${palavra}.png`; // Carrega imagem da dica
+          desenharForca(0); // Desenha a forca zerada
+        })
+        .catch(() => {
+          mensagemDiv.textContent = "Erro ao carregar a lista de palavras."; // Erro de carregamento
+        });
+    }
+
+    // Atualiza a exibição da interface
+    function atualizarTela() {
+      palavraDiv.textContent = palavraExibida.join(" ");
+      letrasErradasDiv.textContent = "Erradas: " + letrasErradas.join(" ");
+      tentativasRestantesDiv.textContent = "Tentativas restantes: " + (tentativasMaximas - letrasErradas.length);
+      contadorDiv.textContent = `Vitórias: ${vitorias} | Derrotas: ${derrotas}`;
+    }
+
+    // Verifica a letra clicada
+    function verificarLetra(letra) {
+      const botao = Array.from(document.querySelectorAll(".tecla")).find((b) => b.textContent === letra);
+      if (botao) botao.disabled = true; // Desativa botão
+
+      if (palavra.includes(letra.toLowerCase())) {
+        palavra.split("").forEach((l, i) => {
+          if (l === letra.toLowerCase()) palavraExibida[i] = l;
+        });
+      } else {
+        if (!letrasErradas.includes(letra)) letrasErradas.push(letra);
+      }
+
+      atualizarTela();
+      desenharForca(letrasErradas.length); // Atualiza boneco
+      verificarFim(); // Verifica se ganhou ou perdeu
+    }
+
+    // Verifica fim do jogo
+    function verificarFim() {
+      if (!palavraExibida.includes("_")) {
+        mensagemDiv.textContent = "Você venceu!";
+        vitorias++;
+        desativarTeclado();
+      } else if (letrasErradas.length >= tentativasMaximas) {
+        mensagemDiv.textContent = `Você perdeu! A palavra era ${palavra}`;
+        derrotas++;
+        desativarTeclado();
+      }
+    }
+
+    // Desativa todas as letras do teclado
+    function desativarTeclado() {
+      const botoes = document.querySelectorAll(".tecla");
+      botoes.forEach((b) => (b.disabled = true));
+    }
+
+    // Botão de reset
+    document.getElementById("reset").addEventListener("click", novaPalavra);
+
+    // Cria o teclado A-Z
+    for (let i = 65; i <= 90; i++) {
+      const letra = String.fromCharCode(i);
+      const botao = document.createElement("button");
+      botao.textContent = letra;
+      botao.className = "tecla";
+      botao.addEventListener("click", () => verificarLetra(letra));
+      tecladoDiv.appendChild(botao);
+    }
+
+    // Suporte a teclado físico
+    document.addEventListener("keydown", (event) => {
+      const letra = event.key.toUpperCase();
+      if (/^[A-Z]$/.test(letra)) {
+        const botao = Array.from(document.querySelectorAll(".tecla")).find((b) => b.textContent === letra);
+        if (botao && !botao.disabled) botao.click();
+      }
+    });
+
+    // Mostra/esconde as opções de dificuldade
+    const configBtn = document.getElementById("configBtn");
+    const selectDificuldade = document.getElementById("dificuldade");
+
+    configBtn.addEventListener("click", () => {
+      selectDificuldade.style.display =
+        selectDificuldade.style.display === "none" ? "inline-block" : "none";
+    });
+
+    // Troca de dificuldade
+    selectDificuldade.addEventListener("change", (e) => {
+      tentativasMaximas = parseInt(e.target.value);
+      novaPalavra(); // Reinicia o jogo
+    });
+
+    // Inicia o jogo automaticamente
+    novaPalavra();
+  </script>
+</body>
+</html>
+
