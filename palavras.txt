@@ -1,0 +1,9 @@
+pistao
+virabrequim
+biela
+valvula
+radiador
+carburador
+embreagem
+alternador
+turbina
